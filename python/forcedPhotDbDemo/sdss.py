@@ -44,11 +44,25 @@ class Observation(object):
             nuAvg += nu
         muAvg /= 4.0
         nuAvg /= 4.0
-        return supaDb.sdss2radec(self.node, self.incl, muAvg, nuAvg)
+        return sdss2radec(self.node, self.incl, muAvg, nuAvg)
+
 
     def name(self):
         return "Stripe %d, Field %d" % (self.stripe, self.field)
 
+
+def sdss2radec(node, incl, mu, nu):
+    muNode = mu - node
+
+    x2 = math.cos(muNode)*math.cos(nu)
+    y2 = math.sin(muNode)*math.cos(nu)
+    z2 = math.sin(nu)
+    y1 = y2*math.cos(incl) - z2*math.sin(incl)
+    z1 = y2*math.sin(incl) + z2*math.cos(incl)
+
+    ra = math.atan2(y1, x2) + node
+    dec = math.asin(z1)
+    return ra, dec
 
 def observationsFromCsv(csvName):
     csv = open(csvName)
