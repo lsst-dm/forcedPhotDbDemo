@@ -19,8 +19,13 @@ def main(inName, outName):
                        (obs.muEnd,   obs.nuEnd),
                        (obs.muEnd,   obs.nuStart)):
             ra,dec = forcedPhotDbDemo.sdss2radec(obs.node, obs.incl, mu, nu)
+            ra =  math.fmod(math.degrees(ra), 360.0)
+            if ra < 0.0:
+                ra += 360.0
+                if ra == 360.0:
+                    ra = 0.0
             output.append(ra)
-            output.append(dec)
+            output.append(math.degrees(dec))
         out.write(",".join([str(value) for value in output]) + "\n")
 
 if __name__ == "__main__":
