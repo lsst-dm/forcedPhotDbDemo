@@ -58,6 +58,9 @@ ALTER TABLE Source ADD INDEX IDX_htmId20(htmId20);
 -- -rw-rw---- 1 mysql mysql 5.7G Apr  6 14:49 Source.MYD
 -- -rw-rw---- 1 mysql mysql 5.0G Apr  6 15:03 Source.MYI
 
+Note: loading data into table with htm index defined takes
+34 min 35.56 sec, so it is faster than adding index later
+
 ------------ make a copy to have sorted and non sorted version ---------
 
 create table SourceNotSorted like Source;
