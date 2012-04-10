@@ -46,12 +46,36 @@ class RunTests():
               "to db", self._dbName
         self._conn = sql.connect(user=self._user,
                                  passwd=self._password,
+                                 host=self._host,
+                                 port=int(self._port),
                                  db=self._dbName)
         self._cursor = self._conn.cursor()
 
-    def runQuery(self, query):
+    def runQuery(self, uniqueId):
+        q1 = '''SELECT scisql_s2CPolyToBin(ra0, decl0, ra1, decl1, ra2, decl2, ra3, decl3) INTO @poly
+                FROM Field 
+                WHERE uniqueId = %s''' % uniqueId
+
+        q2 = "CALL scisql.scisql_s2CPolyRegion(@poly, 20)"
+
+        q3 = '''SELECT sourceId, ra, decl, htmId20 
+                FROM   Source AS s 
+                       INNER JOIN scisql.Region AS r ON (s.htmId20 BETWEEN r.htmMin AND r.htmMax) 
+                WHERE  scisql_s2PtInCPoly(ra, decl, @poly) = 1'''
+
+        self._runQuery(q1, False, uniqueId)
+        self._runQuery(q2, False, uniqueId)
+        self._runQuery(q3, True, uniqueId)
+
+    def _runQuery(self, query, fetchResults, uniqueId):
+        #print "Executing: ", query
         self._cursor.execute(query)
-        #rows = self._cursor.fetchall()
+        if fetchResults:
+            numRows = int(self._cursor.rowcount)
+            print "Got", numRows, "rows for", uniqueId
+            #if numRows > 0:
+            #    rows = self._cursor.fetchall()
+            #    print rows
 
     def tearDown(self):
         self._cursor.close()
@@ -61,15 +85,20 @@ class RunTests():
 def main():
     op = optparse.OptionParser()
     op.add_option("-a", "--authFile", dest="authFile",
-                  help="File with mysql connection info")
+                  help='''File with mysql connection info. Format of one line:
+ <token>:<value>. (Parsing is very basic so no extra spaces please.) Supported tokens:
+host, port, user, pass.''')
     op.add_option("-d", "--db", dest="database",
-                  help="database")
+                  help="database name")
     op.add_option("-i", "--interval", dest="interval",
                   default = 30,
                   help="Interval between queries")
-    op.add_option("-s", "--stopAfter", dest="stopAfter",
+    op.add_option("-f", "--from", dest="xFrom",
+                  default = 1,
+                  help="Beginning of the uniqueId range for the field")
+    op.add_option("-t", "--to", dest="xTo",
                   default = 10,
-                  help="Stop after running STOPAFTER queries")
+                  help="End of the uniqueId range for the field")
     (_options, args) = op.parse_args()
 
     if _options.database is None:
@@ -100,11 +129,12 @@ def main():
     x.init(mysqlUser, mysqlPass, mysqlHost, mysqlPort, _options.database)
     x.connect2Db()
 
-    counter = _options.stopAfter
-    query = "SELECT COUNT(*) FROM Source"
-    while counter > 0:
-        x.runQuery(query)
-        time.sleep(interval)
+    counter = int(_options.xFrom)
+    max = int(_options.xTo)
+    while counter <= max:
+        x.runQuery(counter)
+        counter += 1
+        time.sleep(int(_options.interval))
 
     x.tearDown()
 
