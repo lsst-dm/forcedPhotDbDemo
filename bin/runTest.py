@@ -69,10 +69,12 @@ class RunTests():
 
     def _runQuery(self, query, fetchResults, uniqueId):
         #print "Executing: ", query
+        t1 = time.time()
         self._cursor.execute(query)
+        t2 = time.time()
         if fetchResults:
             numRows = int(self._cursor.rowcount)
-            print "Got", numRows, "rows for", uniqueId
+            print "Got", numRows, "rows for", uniqueId, "in", t2-t1
             #if numRows > 0:
             #    rows = self._cursor.fetchall()
             #    print rows
