@@ -26,24 +26,58 @@
 # functionality available through the appInterface module.  Currently
 # only includes minimal fuzz testing and (unfinished) query replaying.
 
+from datetime import datetime
 import MySQLdb as sql
 import optparse
+import random
+import threading
 import time
 
 
-class RunTests():
+class RunTests(threading.Thread):
 
-    def init(self, user, password, host, port, database):
+    def __init__(self, user, password, host, port, database,
+                 xFrom, xTo, interval, nQueries, testId):
+        super(RunTests, self).__init__()
         self._user = user
         self._password = password
         self._host = host
         self._port = port
         self._dbName = database
+        self._xFrom = xFrom
+        self._xTo = xTo
+        self._interval = interval
+        self._nQueries = nQueries
+        self._plsWait = True
+        self._testId = testId
+
+    def startNow(self):
+        print "%s starting the test now %s" % \
+            (self._testId, datetime.now())
+        self._plsWait = False
+
+    def run(self):
+        while self._plsWait:
+            #print "%s waiting" % self._testId
+            time.sleep(.1)
+        self.connect2Db()
+        t1 = time.time()
+        for i in range(0, self._nQueries):
+            uniqueId = random.randrange(self._xFrom, self._xTo, 1)
+            self.runQuery(uniqueId)
+            time.sleep(self._interval)
+        t2 = time.time()
+        print "%s test ended at %s, it took %s" % \
+            (self._testId, datetime.now(), t2-t1)
+
+    def __del__(self):
+        self._cursor.close()
+        self._conn.close()
 
     def connect2Db(self):
-        print "Connecting to ", self._host, ":", self._port, \
-              " as", self._user, "/", self._password, \
-              "to db", self._dbName
+        print "%s Connecting to %s:%s as %s/%s to db %s" % \
+            (self._testId, self._host, self._port, \
+             self._user, self._password, self._dbName)
         self._conn = sql.connect(user=self._user,
                                  passwd=self._password,
                                  host=self._host,
@@ -74,14 +108,12 @@ class RunTests():
         t2 = time.time()
         if fetchResults:
             numRows = int(self._cursor.rowcount)
-            print "Got", numRows, "rows for", uniqueId, "in", t2-t1
+            print "%s got %s rows for %s in %s sec" % \
+                (self._testId, numRows, uniqueId, t2-t1)
             #if numRows > 0:
             #    rows = self._cursor.fetchall()
             #    print rows
 
-    def tearDown(self):
-        self._cursor.close()
-        self._conn.close()
 
 
 def main():
@@ -101,6 +133,12 @@ host, port, user, pass.''')
     op.add_option("-t", "--to", dest="xTo",
                   default = 10,
                   help="End of the uniqueId range for the field")
+    op.add_option("-n", "--nQueries", dest="nQueries",
+                  default = 10,
+                  help="Number of queries to run (randomly select field from range)")
+    op.add_option("-m", "--multiThread", dest="multithread",
+                  default = 1,
+                  help="Number of parallel queries to run")
     (_options, args) = op.parse_args()
 
     if _options.database is None:
@@ -127,18 +165,22 @@ host, port, user, pass.''')
             mysqlPort = value
     f.close()
 
-    x = RunTests()
-    x.init(mysqlUser, mysqlPass, mysqlHost, mysqlPort, _options.database)
-    x.connect2Db()
+    x = []
+    nThreads = int(_options.multithread)
+    for i in range(0, nThreads):
+        print i
+        x.append(RunTests(mysqlUser, mysqlPass, mysqlHost, mysqlPort, 
+                          _options.database, int(_options.xFrom), 
+                          int(_options.xTo), int(_options.interval), 
+                          int(_options.nQueries), i))
+        x[i].start()
 
-    counter = int(_options.xFrom)
-    max = int(_options.xTo)
-    while counter <= max:
-        x.runQuery(counter)
-        counter += 1
-        time.sleep(int(_options.interval))
+    time.sleep(2)
+    for i in range(0, nThreads):
+        x[i].startNow()
 
-    x.tearDown()
+    for i in range(0, nThreads):
+        x[i].join()
 
 
 if __name__ == '__main__':
